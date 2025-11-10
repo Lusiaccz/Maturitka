@@ -1,41 +1,17 @@
 import pygame
 import random
+import settings
 
 # Initialize Pygame
 pygame.init()
 
-# Constants
-WIDTH, HEIGHT = 300, 600
-BLOCK_SIZE = 30
-COLUMNS = WIDTH // BLOCK_SIZE
-ROWS = HEIGHT // BLOCK_SIZE
-FPS = 5
-
-# Colors
-BLACK = (0, 0, 0)
-GRAY = (128, 128, 128)
-COLORS = [(0, 255, 255), (255, 165, 0), (0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (128, 0, 128)]
-
-# Shapes
-SHAPES = [
-    [[1, 1, 1, 1]],  # I
-    [[1, 1], [1, 1]],  # O
-    [[0, 1, 0], [1, 1, 1]],  # T
-    [[1, 0, 0], [1, 1, 1]],  # J
-    [[0, 0, 1], [1, 1, 1]],  # L
-    [[1, 1, 0], [0, 1, 1]],  # S
-    [[0, 1, 1], [1, 1, 0]]   # Z
-]
-
-# Game grid
-grid = [[0 for _ in range(COLUMNS)] for _ in range(ROWS)]
 
 # Piece class
 class Piece:
     def __init__(self):
-        self.shape = random.choice(SHAPES)
-        self.color = random.choice(COLORS)
-        self.x = COLUMNS // 2 - len(self.shape[0]) // 2
+        self.shape = random.choice(settings.SHAPES)
+        self.color = random.choice(settings.COLORS)
+        self.x = settings.COLUMNS // 2 - len(self.shape[0]) // 2
         self.y = 0
 
     def rotate(self):
@@ -46,7 +22,7 @@ class Piece:
             for x, cell in enumerate(row):
                 if cell:
                     nx, ny = self.x + x + dx, self.y + y + dy
-                    if nx < 0 or nx >= COLUMNS or ny >= ROWS or (ny >= 0 and grid[ny][nx]):
+                    if nx < 0 or nx >= settings.COLUMNS or ny >= settings.ROWS or (ny >= 0 and settings.grid[ny][nx]):
                         return False
         return True
 
@@ -54,35 +30,38 @@ class Piece:
         for y, row in enumerate(self.shape):
             for x, cell in enumerate(row):
                 if cell:
-                    grid[self.y + y][self.x + x] = self.color
+                    settings.grid[self.y + y][self.x + x] = self.color
 
 # Line clearing
 def clear_lines():
     global grid
-    grid = [row for row in grid if any(cell == 0 for cell in row)]
-    while len(grid) < ROWS:
-        grid.insert(0, [0 for _ in range(COLUMNS)])
+    settings.grid = [row for row in settings.grid if any(cell == 0 for cell in row)]
+    while len(settings.grid) < settings.ROWS:
+        settings.grid.insert(0, [0 for _ in range(settings.COLUMNS)])
 
 # Drawing
 def draw(win, piece):
-    win.fill(BLACK)
-    for y in range(ROWS):
-        for x in range(COLUMNS):
-            color = grid[y][x]
+    win.fill(settings.BLACK)
+    for y in range(settings.ROWS):
+        for x in range(settings.COLUMNS):
+            color = settings.grid[y][x]
             if color:
-                pygame.draw.rect(win, color, (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+                pygame.draw.rect(win, color, (x * settings.BLOCK_SIZE, y * settings.BLOCK_SIZE, settings.BLOCK_SIZE,
+                                              settings.BLOCK_SIZE))
     for y, row in enumerate(piece.shape):
         for x, cell in enumerate(row):
             if cell:
-                pygame.draw.rect(win, piece.color, ((piece.x + x) * BLOCK_SIZE, (piece.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+                pygame.draw.rect(win, piece.color, ((piece.x + x) * settings.BLOCK_SIZE, (piece.y + y) * settings.BLOCK_SIZE,
+                                                    settings.BLOCK_SIZE, settings.BLOCK_SIZE))
     pygame.display.update()
 
 # Main loop
 def main():
-    win = pygame.display.set_mode((WIDTH, HEIGHT))
+    win = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT))
     clock = pygame.time.Clock()
     piece = Piece()
     running = True
+    FPS = settings.FPS
 
     while running:
         clock.tick(FPS)
