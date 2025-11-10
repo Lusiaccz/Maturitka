@@ -2,11 +2,7 @@ import pygame
 import random
 import settings
 
-# Initialize Pygame
 pygame.init()
-
-
-# Piece class
 class Piece:
     def __init__(self):
         self.shape = random.choice(settings.SHAPES)
@@ -69,13 +65,13 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT and piece.valid(dx=-1):
+                if event.key == pygame.K_a and piece.valid(dx=-1):
                     piece.x -= 1
-                elif event.key == pygame.K_RIGHT and piece.valid(dx=1):
+                elif event.key == pygame.K_d and piece.valid(dx=1):
                     piece.x += 1
-                elif event.key == pygame.K_DOWN and piece.valid(dy=1):
+                elif event.key == pygame.K_s and piece.valid(dy=1):
                     piece.y += 1
-                elif event.key == pygame.K_UP:
+                elif event.key == pygame.K_w:
                     piece.rotate()
                     if not piece.valid():
                         piece.rotate()

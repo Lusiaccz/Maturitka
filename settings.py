@@ -1,16 +1,14 @@
-# Constants
-WIDTH, HEIGHT = 300, 600
+WIDTH, HEIGHT = 600, 1200
 BLOCK_SIZE = 30
 COLUMNS = WIDTH // BLOCK_SIZE
 ROWS = HEIGHT // BLOCK_SIZE
 FPS = 5
 
-# Colors
 BLACK = (0, 0, 0)
 GRAY = (128, 128, 128)
 COLORS = [(0, 255, 255), (255, 165, 0), (0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (128, 0, 128)]
 
-# Shapes
+
 SHAPES = [
     [[1, 1, 1, 1]],  # I
     [[1, 1], [1, 1]],  # O
@@ -21,5 +19,4 @@ SHAPES = [
     [[0, 1, 1], [1, 1, 0]]   # Z
 ]
 
-# Game grid
 grid = [[0 for _ in range(COLUMNS)] for _ in range(ROWS)]
