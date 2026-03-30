@@ -1,20 +1,30 @@
-import sqlite3
-import datetime
+import sqlite3, datetime
 
 def init_db():
-    conn = sqlite3.connect("tetris.db")
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS high_scores 
-                      (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                       name TEXT, score INTEGER, level INTEGER, played_at TEXT)''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("tetris.db") as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS users 
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         username TEXT UNIQUE, password TEXT, created_at TEXT)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS high_scores 
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         user_id INTEGER, name TEXT, score INTEGER, 
+                         level INTEGER, played_at TEXT,
+                         FOREIGN KEY(user_id) REFERENCES users(id))''')
 
-def save_score(name, score, level):
-    conn = sqlite3.connect("tetris.db")
-    cursor = conn.cursor()
-    cas_ted = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-    cursor.execute("INSERT INTO high_scores (name, score, level, played_at) VALUES (?, ?, ?, ?)",
-                   (name, score, level, cas_ted))
-    conn.commit()
-    conn.close()
+def register_user(u, p):
+    try:
+        with sqlite3.connect("tetris.db") as conn:
+            d = datetime.datetime.now().strftime("%d. %m. %Y")
+            conn.execute("INSERT INTO users (username, password, created_at) VALUES (?, ?, ?)", (u, p, d))
+        return True
+    except: return False
+
+def login_user(u, p):
+    with sqlite3.connect("tetris.db") as conn:
+        res = conn.execute("SELECT id FROM users WHERE username=? AND password=?", (u, p)).fetchone()
+        return res[0] if res else None
+
+def save_score(uid, name, s, l):
+    with sqlite3.connect("tetris.db") as conn:
+        now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+        conn.execute("INSERT INTO high_scores (user_id, name, score, level, played_at) VALUES (?,?,?,?,?)", (uid, name, s, l, now))

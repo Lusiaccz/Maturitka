@@ -1,229 +1,335 @@
 import pygame
 import random
 import settings
-from database import init_db, save_score
+import database
 from game_elements import Button, Piece
 
-# Inicializace Pygame
+# Inicializace Pygame a fontů
 pygame.init()
 
 
-# =====================
-# POMOCNÉ FUNKCE
-# =====================
-def draw_text_center(win, text, font, color, x, y):
+def draw_text(win, text, font, color, x, y, shadow=True):
+    """Pomocná funkce pro vykreslení textu se stínem pro lepší čitelnost."""
+    if shadow:
+        shadow_surf = font.render(text, True, (0, 0, 0))
+        win.blit(shadow_surf, shadow_surf.get_rect(center=(x + 2, y + 2)))
     surf = font.render(text, True, color)
-    rect = surf.get_rect(center=(x, y))
-    win.blit(surf, rect)
+    win.blit(surf, surf.get_rect(center=(x, y)))
 
 
-def get_next_shape_index(bag):
-    if not bag:
-        bag.extend(range(len(settings.SHAPES)))
-        random.shuffle(bag)
-    return bag.pop()
+class Bag:
+    """Implementace 7-Bag systému pro férové generování kostek."""
+
+    def __init__(self):
+        self.content = []
+
+    def get_piece(self, grid):
+        if not self.content:
+            self.content = list(range(len(settings.SHAPES)))
+            random.shuffle(self.content)
+        return Piece(grid, self.content.pop())
 
 
-# =====================
-# HERNÍ OBRAZOVKY
-# =====================
-def get_name_screen(win, bg_image):
-    font = pygame.font.SysFont("arial", 32)
-    name, run = "", True
-    while run:
-        win.blit(bg_image, (0, 0))
-        draw_text_center(win, "Zadej jméno a ENTER:", font, settings.WHITE, settings.WIDTH // 2,
-                         settings.HEIGHT // 2 - 50)
-
-        name_surf = font.render(name + "|", True, (255, 255, 0))
-        name_rect = name_surf.get_rect(center=(settings.WIDTH // 2, settings.HEIGHT // 2 + 10))
-        win.blit(name_surf, name_rect)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: return None
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN and name.strip():
-                    run = False
-                elif event.key == pygame.K_BACKSPACE:
-                    name = name[:-1]
-                else:
-                    if len(name) < 10 and (event.unicode.isalnum() or event.unicode == " "):
-                        name += event.unicode
-        pygame.display.update()
-    return name
-
-
-def game_over_menu(win, score):
-    title_font = pygame.font.SysFont("arial", 48, bold=True)
-    button_font = pygame.font.SysFont("arial", 28)
-    cx, cy = settings.WIDTH // 2, settings.HEIGHT // 2
-
-    overlay = pygame.Surface((settings.WIDTH, settings.HEIGHT))
-    overlay.set_alpha(180)
-    overlay.fill((0, 0, 0))
-    win.blit(overlay, (0, 0))
-
-    replay_btn = Button(cx - 90, cy + 20, 180, 50, "REPLAY", button_font)
-    menu_btn = Button(cx - 90, cy + 90, 180, 50, "MENU", button_font)
-
-    draw_text_center(win, "GAME OVER", title_font, (255, 50, 50), cx, cy - 100)
-    draw_text_center(win, f"Score: {score}", button_font, settings.WHITE, cx, cy - 40)
-
-    while True:
-        replay_btn.draw(win)
-        menu_btn.draw(win)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: return "QUIT"
-            if replay_btn.clicked(event): return "RESTART"
-            if menu_btn.clicked(event): return "MENU"
-        pygame.display.update()
-
-
-def menu(win, bg_original):
-    title_font = pygame.font.SysFont("arial", 50, bold=True)
-    button_font = pygame.font.SysFont("arial", 28)
-    label_font = pygame.font.SysFont("arial", 20, bold=True)  # Font pro popisky
-    state, res_index = settings.MENU_MAIN, 0
-    bg_image = pygame.transform.scale(bg_original, (settings.WIDTH, settings.HEIGHT))
-
-    while True:
-        win.blit(bg_image, (0, 0))
-        cx, cy = settings.WIDTH // 2, settings.HEIGHT // 2
-
-        if state == settings.MENU_MAIN:
-            btns = [Button(cx - 90, cy - 60, 180, 50, "PLAY", button_font),
-                    Button(cx - 90, cy + 10, 180, 50, "SETTINGS", button_font),
-                    Button(cx - 90, cy + 80, 180, 50, "QUIT", button_font)]
-            draw_text_center(win, "TETRIS", title_font, settings.WHITE, cx, cy - 150)
-            for b in btns: b.draw(win)
-        else:
-            btns = [Button(cx - 110, cy, 40, 40, "-", button_font),
-                    Button(cx + 70, cy, 40, 40, "+", button_font),
-                    Button(cx - 90, cy + 80, 180, 50, "BACK", button_font)]
-
-            draw_text_center(win, "SETTINGS", title_font, settings.WHITE, cx, cy - 150)
-            # Nápis RESOLUTION nad výběrem
-            draw_text_center(win, "RESOLUTION", label_font, (settings.WHITE), cx, cy - 40)
-            draw_text_center(win, f"{settings.WIDTH}x{settings.HEIGHT}", button_font, settings.WHITE, cx, cy + 20)
-            for b in btns: b.draw(win)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: return False, None
-            if state == settings.MENU_MAIN:
-                if btns[0].clicked(event): return True, bg_image
-                if btns[1].clicked(event): state = settings.MENU_SETTINGS
-                if btns[2].clicked(event): return False, None
-            else:
-                if btns[2].clicked(event): state = settings.MENU_MAIN
-                if btns[0].clicked(event) or btns[1].clicked(event):
-                    res_index = (res_index + (1 if btns[1].clicked(event) else -1)) % len(settings.RESOLUTIONS)
-                    settings.WIDTH, settings.HEIGHT = settings.RESOLUTIONS[res_index]
-                    settings.BLOCK_SIZE = settings.HEIGHT // settings.ROWS
-                    win = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT))
-                    bg_image = pygame.transform.scale(bg_original, (settings.WIDTH, settings.HEIGHT))
-        pygame.display.update()
-
-
-# =====================
-# VYKRESLOVÁNÍ HRY
-# =====================
-def draw_game(win, grid, piece, score, level, bg_image, player_name):
-    win.blit(bg_image, (0, 0))
-    for y in range(settings.ROWS):
-        for x in range(settings.COLUMNS):
-            if grid[y][x]:
-                pygame.draw.rect(win, grid[y][x],
-                                 (x * settings.BLOCK_SIZE, y * settings.BLOCK_SIZE, settings.BLOCK_SIZE,
-                                  settings.BLOCK_SIZE))
-            pygame.draw.rect(win, (155, 161, 157),
-                             (x * settings.BLOCK_SIZE, y * settings.BLOCK_SIZE, settings.BLOCK_SIZE,
-                              settings.BLOCK_SIZE), 1)
-
-    for y, row in enumerate(piece.shape):
-        for x, cell in enumerate(row):
-            if cell:
-                pygame.draw.rect(win, piece.color,
-                                 ((piece.x + x) * settings.BLOCK_SIZE, (piece.y + y) * settings.BLOCK_SIZE,
-                                  settings.BLOCK_SIZE, settings.BLOCK_SIZE))
-
-    font = pygame.font.SysFont("arial", 20, bold=True)
-    draw_text_center(win, f"{player_name} | S: {score} | L: {level}", font, settings.WHITE, settings.WIDTH // 2, 20)
-    pygame.display.update()
-
-
-# =====================
-# HLAVNÍ FUNKCE
-# =====================
-def main():
-    init_db()
-    win = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT))
-    pygame.display.set_caption("Tetris Arcade")
-
+def load_bg(win):
+    """Načte a přeškáluje pozadí podle aktuální velikosti okna."""
     try:
-        bg_original = pygame.image.load("background.png").convert()
-    except:
-        bg_original = pygame.Surface((1200, 1200))
-        bg_original.fill((20, 20, 20))
+        img = pygame.image.load("static/background.png").convert()
+        return pygame.transform.scale(img, (win.get_width(), win.get_height()))
+    except Exception as e:
+        print(f"Chyba při načítání pozadí: {e}")
+        fallback = pygame.Surface((win.get_width(), win.get_height()))
+        fallback.fill((10, 10, 10))
+        return fallback
+
+
+# --- HERNÍ OBRAZOVKY (STAVY) ---
+
+def auth_screen(win, bg_img):
+    """Obrazovka pro přihlášení a registraci."""
+    f_title = pygame.font.SysFont("Arial", 32, bold=True)
+    f_ui = pygame.font.SysFont("Arial", 20)
+    u, p, field, mode, err = "", "", "u", "LOGIN", ""
+    cx = win.get_width() // 2
+
+    u_box = pygame.Rect(cx - 100, 180, 200, 40)
+    p_box = pygame.Rect(cx - 100, 240, 200, 40)
+
+    # V logině vypneme DAS (opakování kláves)
+    pygame.key.set_repeat(0)
 
     while True:
-        run_game, bg_image = menu(win, bg_original)
-        if not run_game: break
+        win.blit(bg_img, (0, 0))
+        overlay = pygame.Surface((win.get_width(), win.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 210))  # Tmavší překryv pro formulář
+        win.blit(overlay, (0, 0))
 
-        player_name = get_name_screen(win, bg_image)
-        if not player_name: continue
+        draw_text(win, mode, f_title, settings.PRIMARY, cx, 100)
 
-        playing = True
-        while playing:
-            grid = [[0 for _ in range(settings.COLUMNS)] for _ in range(settings.ROWS)]
-            score, level, fall_time, bag = 0, 1, 0, []
-            piece = Piece(grid, get_next_shape_index(bag))
-            clock = pygame.time.Clock()
-            game_active = True
+        # Vykreslení vstupních polí
+        pygame.draw.rect(win, settings.PRIMARY if field == "u" else (60, 60, 60), u_box, 2, border_radius=5)
+        draw_text(win, u if u else "Uživatel...", f_ui, (150, 150, 150), cx, 200)
 
-            while game_active:
-                fall_speed = 1000 // min(settings.MAX_FPS, settings.FPS + level)
-                fall_time += clock.get_rawtime()
-                clock.tick()
+        pygame.draw.rect(win, settings.PRIMARY if field == "p" else (60, 60, 60), p_box, 2, border_radius=5)
+        draw_text(win, "*" * len(p) if p else "Heslo...", f_ui, (150, 150, 150), cx, 260)
 
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT: pygame.quit(); return
-                    if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_LEFT and piece.valid(dx=-1): piece.x -= 1
-                        if event.key == pygame.K_RIGHT and piece.valid(dx=1): piece.x += 1
-                        if event.key == pygame.K_DOWN and piece.valid(dy=1): piece.y += 1
-                        if event.key == pygame.K_UP: piece.rotate()
+        sub_btn = Button(cx - 100, 320, 200, 45, "POTVRDIT", f_ui, settings.SECONDARY)
+        mod_btn = Button(cx - 100, 380, 200, 40, "PŘEPNOUT", f_ui, (120, 120, 120))
 
-                if fall_time >= fall_speed:
-                    if piece.valid(dy=1):
-                        piece.y += 1
+        for b in [sub_btn, mod_btn]: b.draw(win)
+        if err: draw_text(win, err, f_ui, settings.ACCENT, cx, 305)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: return None
+
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                if u_box.collidepoint(e.pos): field = "u"
+                if p_box.collidepoint(e.pos): field = "p"
+
+            if sub_btn.is_clicked(e) or (e.type == pygame.KEYDOWN and e.key == pygame.K_RETURN):
+                if not u or not p:
+                    err = "Vyplňte všechna pole!"
+                    continue
+                if mode == "LOGIN":
+                    uid = database.login_user(u, p)
+                    if uid: return (uid, u)
+                    err = "Chybné jméno nebo heslo!"
+                else:
+                    if database.register_user(u, p):
+                        mode = "LOGIN"
+                        err = "Registrace úspěšná!"
                     else:
-                        piece.place()
-                        # Mazání řádků a skóre
-                        full_rows = [r for r in grid if all(c != 0 for c in r)]
-                        lines_cleared = len(full_rows)
-                        if lines_cleared > 0:
-                            grid[:] = [[0] * settings.COLUMNS for _ in range(lines_cleared)] + [r for r in grid if
-                                                                                                any(c == 0 for c in r)]
-                            score += {1: 100, 2: 300, 3: 500, 4: 800}.get(lines_cleared, 0)
-                            level = score // settings.LEVEL_UP_SCORE + 1
+                        err = "Uživatel již existuje!"
 
-                        piece = Piece(grid, get_next_shape_index(bag))
-                        if not piece.valid():
-                            save_score(player_name, score, level)
-                            action = game_over_menu(win, score)
-                            if action == "RESTART":
+            if mod_btn.is_clicked(e):
+                mode = "REGISTRACE" if mode == "LOGIN" else "LOGIN"
+                err = ""
+
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_BACKSPACE:
+                    if field == "u":
+                        u = u[:-1]
+                    else:
+                        p = p[:-1]
+                elif e.key == pygame.K_TAB:
+                    field = "p" if field == "u" else "u"
+                elif e.unicode.isprintable() and e.key != pygame.K_RETURN:
+                    if field == "u":
+                        u += e.unicode
+                    else:
+                        p += e.unicode
+
+        pygame.display.update()
+
+
+def settings_menu(win, bg_img):
+    """Menu pro výběr rozlišení."""
+    f_title = pygame.font.SysFont("Arial", 30, bold=True)
+    f_ui = pygame.font.SysFont("Arial", 18)
+    cx = win.get_width() // 2
+
+    while True:
+        win.blit(bg_img, (0, 0))
+        overlay = pygame.Surface((win.get_width(), win.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        win.blit(overlay, (0, 0))
+
+        draw_text(win, "NASTAVENÍ VELIKOSTI", f_title, settings.PRIMARY, cx, 100)
+
+        btn_s = Button(cx - 100, 180, 200, 45, "MALÉ (300x600)", f_ui, settings.PRIMARY)
+        btn_m = Button(cx - 100, 240, 200, 45, "STŘEDNÍ (400x800)", f_ui, settings.SECONDARY)
+        btn_l = Button(cx - 100, 300, 200, 45, "VELKÉ (500x1000)", f_ui, settings.ACCENT)
+        btn_back = Button(cx - 100, 400, 200, 45, "ZPĚT", f_ui, (150, 150, 150))
+
+        for b in [btn_s, btn_m, btn_l, btn_back]: b.draw(win)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: return "QUIT"
+            if btn_s.is_clicked(e): return 30
+            if btn_m.is_clicked(e): return 40
+            if btn_l.is_clicked(e): return 50
+            if btn_back.is_clicked(e): return "BACK"
+
+        pygame.display.update()
+
+
+def start_menu(win, bg_img, uname):
+    """Hlavní rozcestník po přihlášení."""
+    f_title = pygame.font.SysFont("Arial", 36, bold=True)
+    f_ui = pygame.font.SysFont("Arial", 24)
+    cx = win.get_width() // 2
+    while True:
+        win.blit(bg_img, (0, 0))
+        overlay = pygame.Surface((win.get_width(), win.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        win.blit(overlay, (0, 0))
+
+        draw_text(win, "NEON TETRIS 2026", f_title, settings.PRIMARY, cx, 120)
+        draw_text(win, f"Hráč: {uname}", f_ui, (255, 255, 255), cx, 180)
+
+        play_btn = Button(cx - 90, 250, 180, 50, "HRÁT", f_ui, settings.SECONDARY)
+        set_btn = Button(cx - 90, 320, 180, 50, "NASTAVENÍ", f_ui, (100, 100, 100))
+        logout_btn = Button(cx - 90, 390, 180, 50, "ODHLÁSIT", f_ui, settings.ACCENT)
+
+        for b in [play_btn, set_btn, logout_btn]: b.draw(win)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: return "QUIT"
+            if play_btn.is_clicked(e): return "PLAY"
+            if set_btn.is_clicked(e): return "SETTINGS"
+            if logout_btn.is_clicked(e): return "LOGOUT"
+
+        pygame.display.update()
+
+
+def game_over_screen(win, bg_img, score):
+    """Obrazovka po skončení hry."""
+    f_title = pygame.font.SysFont("Arial", 40, bold=True)
+    f_ui = pygame.font.SysFont("Arial", 24)
+    cx = win.get_width() // 2
+    while True:
+        win.blit(bg_img, (0, 0))
+        overlay = pygame.Surface((win.get_width(), win.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        win.blit(overlay, (0, 0))
+
+        draw_text(win, "GAME OVER", f_title, settings.ACCENT, cx, 150)
+        draw_text(win, f"KONEČNÉ SKÓRE: {score}", f_ui, (255, 255, 255), cx, 220)
+
+        again_btn = Button(cx - 90, 320, 180, 50, "HRÁT ZNOVU", f_ui, settings.PRIMARY)
+        menu_btn = Button(cx - 90, 390, 180, 50, "HLAVNÍ MENU", f_ui, settings.SECONDARY)
+
+        for b in [again_btn, menu_btn]: b.draw(win)
+
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: return "QUIT"
+            if again_btn.is_clicked(e): return "PLAY"
+            if menu_btn.is_clicked(e): return "MENU"
+
+        pygame.display.update()
+
+
+# --- HLAVNÍ LOGIKA APLIKACE ---
+
+def main():
+    database.init_db()
+    win = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT))
+    pygame.display.set_caption("Neon Tetris 2026")
+
+    bg_img = load_bg(win)
+
+    while True:  # Smyčka celé aplikace
+        auth = auth_screen(win, bg_img)
+        if not auth: break
+        uid, uname = auth
+
+        run_app = True
+        while run_app:  # Smyčka po přihlášení
+            choice = start_menu(win, bg_img, uname)
+
+            if choice == "SETTINGS":
+                res = settings_menu(win, bg_img)
+                if isinstance(res, int):
+                    settings.BLOCK_SIZE = res
+                    settings.WIDTH = settings.COLUMNS * res
+                    settings.HEIGHT = settings.ROWS * res
+                    win = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT))
+                    bg_img = load_bg(win)
+                continue
+
+            if choice == "LOGOUT": break
+            if choice == "QUIT": return
+
+            playing = True
+            while playing:  # Smyčka samotného hraní
+                # Zapnutí DAS systému (Delayed Auto Shift)
+                pygame.key.set_repeat(200, 50)
+
+                grid = [[0 for _ in range(settings.COLUMNS)] for _ in range(settings.ROWS)]
+                score, lvl, fall_time, clock = 0, 1, 0, pygame.time.Clock()
+
+                tetris_bag = Bag()
+                piece = tetris_bag.get_piece(grid)
+
+                game_active = True
+                while game_active:
+                    # Výpočet rychlosti pádu podle levelu
+                    fall_speed = max(100, 1000 // (lvl + 2))
+                    fall_time += clock.get_rawtime()
+                    clock.tick()
+
+                    for e in pygame.event.get():
+                        if e.type == pygame.QUIT: pygame.quit(); return
+                        if e.type == pygame.KEYDOWN:
+                            if e.key == pygame.K_LEFT and piece.valid(dx=-1): piece.x -= 1
+                            if e.key == pygame.K_RIGHT and piece.valid(dx=1): piece.x += 1
+                            if e.key == pygame.K_DOWN and piece.valid(dy=1): piece.y += 1
+                            if e.key == pygame.K_UP: piece.rotate()
+                            if e.key == pygame.K_SPACE:  # Hard Drop
+                                while piece.valid(dy=1): piece.y += 1
+
+                    # Logika volného pádu
+                    if fall_time >= fall_speed:
+                        if piece.valid(dy=1):
+                            piece.y += 1
+                        else:
+                            piece.place()
+                            # Detekce a mazání řad
+                            full_rows = [i for i, r in enumerate(grid) if all(c != 0 for c in r)]
+                            if full_rows:
+                                for i in full_rows:
+                                    del grid[i]
+                                    grid.insert(0, [0 for _ in range(settings.COLUMNS)])
+
+                                # Nelineární bodování
+                                cleared = len(full_rows)
+                                mult = {1: 100, 2: 300, 3: 700, 4: 1500}
+                                score += mult.get(cleared, 0) * lvl
+
+                                lvl = score // settings.LEVEL_UP_SCORE + 1
+
+                            piece = tetris_bag.get_piece(grid)
+                            if not piece.valid():  # Game Over
+                                database.save_score(uid, uname, score, lvl)
                                 game_active = False
-                            elif action == "MENU":
-                                game_active = False
-                                playing = False
-                            else:
-                                pygame.quit();
-                                return
-                    fall_time = 0
+                        fall_time = 0
 
-                draw_game(win, grid, piece, score, level, bg_image, player_name)
+                    # --- VYKRESLOVÁNÍ ---
+                    win.blit(bg_img, (0, 0))
 
-    pygame.quit()
+                    # Mřížka a položené bloky
+                    for y in range(settings.ROWS):
+                        for x in range(settings.COLUMNS):
+                            rect = (x * settings.BLOCK_SIZE, y * settings.BLOCK_SIZE,
+                                    settings.BLOCK_SIZE, settings.BLOCK_SIZE)
+                            if grid[y][x]:
+                                pygame.draw.rect(win, grid[y][x], rect)
+                            pygame.draw.rect(win, (50, 50, 50), rect, 1)
+
+                    # Aktivní kostka s obrysem
+                    for y, row in enumerate(piece.shape):
+                        for x, cell in enumerate(row):
+                            if cell:
+                                rect = ((piece.x + x) * settings.BLOCK_SIZE,
+                                        (piece.y + y) * settings.BLOCK_SIZE,
+                                        settings.BLOCK_SIZE, settings.BLOCK_SIZE)
+                                pygame.draw.rect(win, piece.color, rect)
+                                pygame.draw.rect(win, (255, 255, 255), rect, 1)
+
+                    # Horní UI lišta (průhledná)
+                    ui_bar = pygame.Surface((win.get_width(), 50), pygame.SRCALPHA)
+                    ui_bar.fill((0, 0, 0, 150))
+                    win.blit(ui_bar, (0, 0))
+
+                    f_stats = pygame.font.SysFont("Arial", 16, bold=True)
+                    draw_text(win, f"HRÁČ: {uname}", f_stats, settings.PRIMARY, win.get_width() // 2, 15)
+                    draw_text(win, f"SKÓRE: {score} | LEVEL: {lvl}", f_stats, (255, 255, 255), win.get_width() // 2, 35)
+
+                    pygame.display.update()
+
+                # Stavy po skončení hry
+                res = game_over_screen(win, bg_img, score)
+                if res == "MENU": playing = False
+                if res == "QUIT": return
 
 
 if __name__ == "__main__":
