@@ -54,7 +54,7 @@ def auth_screen(win, bg_img):
     u_box = pygame.Rect(cx - 100, 180, 200, 40)
     p_box = pygame.Rect(cx - 100, 240, 200, 40)
 
-    # V logině vypneme DAS (opakování kláves)
+    
     pygame.key.set_repeat(0)
 
     while True:
@@ -208,7 +208,7 @@ def game_over_screen(win, bg_img, score):
         pygame.display.update()
 
 
-# --- HLAVNÍ LOGIKA APLIKACE ---
+# --- HLAVNÍ LOGIKA ---
 
 def main():
     database.init_db()
