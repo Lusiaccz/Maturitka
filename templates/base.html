@@ -182,7 +182,7 @@
         <a href="/leaderboard">Top 20</a>
 
         {% if session.user_id %}
-            <div class="nav-avatar">{{ session.username[0] | upper }}</div>
+            <a href="/profile"><div class="nav-avatar">{{ session.username[0] | upper }}</div></a>
             <a href="/profile">Profil</a>
             <a href="/logout" style="color: var(--accent);">Logout</a>
         {% else %}
